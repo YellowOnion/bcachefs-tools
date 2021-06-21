@@ -2176,39 +2176,40 @@ struct btree_iter *__bch2_trans_copy_iter(struct btree_trans *trans,
 	return iter;
 }
 
-static int bch2_trans_preload_mem(struct btree_trans *trans, size_t size)
+void *bch2_trans_kmalloc(struct btree_trans *trans, size_t size)
 {
-	if (size > trans->mem_bytes) {
+	size_t new_top = trans->mem_top + size;
+	void *p;
+
+	if (new_top > trans->mem_bytes) {
 		size_t old_bytes = trans->mem_bytes;
-		size_t new_bytes = roundup_pow_of_two(size);
-		void *new_mem = krealloc(trans->mem, new_bytes, GFP_NOFS);
+		size_t new_bytes = roundup_pow_of_two(new_top);
+		void *new_mem;
+
+		WARN_ON_ONCE(new_bytes > BTREE_TRANS_MEM_MAX);
+
+		new_mem = krealloc(trans->mem, new_bytes, GFP_NOFS);
+		if (!new_mem && new_bytes <= BTREE_TRANS_MEM_MAX) {
+			new_mem = mempool_alloc(&trans->c->btree_trans_mem_pool, GFP_KERNEL);
+			new_bytes = BTREE_TRANS_MEM_MAX;
+			kfree(trans->mem);
+		}
 
 		if (!new_mem)
-			return -ENOMEM;
+			return ERR_PTR(-ENOMEM);
 
 		trans->mem = new_mem;
 		trans->mem_bytes = new_bytes;
 
 		if (old_bytes) {
 			trace_trans_restart_mem_realloced(trans->ip, new_bytes);
-			return -EINTR;
+			return ERR_PTR(-EINTR);
 		}
 	}
 
-	return 0;
-}
-
-void *bch2_trans_kmalloc(struct btree_trans *trans, size_t size)
-{
-	void *p;
-	int ret;
-
-	ret = bch2_trans_preload_mem(trans, trans->mem_top + size);
-	if (ret)
-		return ERR_PTR(ret);
-
 	p = trans->mem + trans->mem_top;
 	trans->mem_top += size;
+	memset(p, 0, size);
 	return p;
 }
 
@@ -2292,6 +2293,11 @@ void bch2_trans_init(struct btree_trans *trans, struct bch_fs *c,
 	if (expected_mem_bytes) {
 		trans->mem_bytes = roundup_pow_of_two(expected_mem_bytes);
 		trans->mem = kmalloc(trans->mem_bytes, GFP_KERNEL|__GFP_NOFAIL);
+
+		if (!unlikely(trans->mem)) {
+			trans->mem = mempool_alloc(&c->btree_trans_mem_pool, GFP_KERNEL);
+			trans->mem_bytes = BTREE_TRANS_MEM_MAX;
+		}
 	}
 
 	trans->srcu_idx = srcu_read_lock(&c->btree_trans_barrier);
@@ -2321,7 +2327,11 @@ int bch2_trans_exit(struct btree_trans *trans)
 	bch2_journal_preres_put(&trans->c->journal, &trans->journal_preres);
 
 	kfree(trans->fs_usage_deltas);
-	kfree(trans->mem);
+
+	if (trans->mem_bytes == BTREE_TRANS_MEM_MAX)
+		mempool_free(trans->mem, &trans->c->btree_trans_mem_pool);
+	else
+		kfree(trans->mem);
 
 #ifdef __KERNEL__
 	/*
@@ -2404,6 +2414,7 @@ void bch2_btree_trans_to_text(struct printbuf *out, struct bch_fs *c)
 
 void bch2_fs_btree_iter_exit(struct bch_fs *c)
 {
+	mempool_exit(&c->btree_trans_mem_pool);
 	mempool_exit(&c->btree_iters_pool);
 	cleanup_srcu_struct(&c->btree_trans_barrier);
 }
@@ -2419,5 +2430,7 @@ int bch2_fs_btree_iter_init(struct bch_fs *c)
 		mempool_init_kmalloc_pool(&c->btree_iters_pool, 1,
 			sizeof(struct btree_iter) * nr +
 			sizeof(struct btree_insert_entry) * nr +
-			sizeof(struct btree_insert_entry) * nr);
+			sizeof(struct btree_insert_entry) * nr) ?:
+		mempool_init_kmalloc_pool(&c->btree_trans_mem_pool, 1,
+					  BTREE_TRANS_MEM_MAX);
 }

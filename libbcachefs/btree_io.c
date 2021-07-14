@@ -1466,8 +1466,7 @@ void bch2_btree_node_read(struct bch_fs *c, struct btree *b,
 	btree_pos_to_text(&PBUF(buf), c, b);
 	trace_btree_read(c, b);
 
-	if (bch2_verify_all_btree_replicas &&
-	    !btree_node_read_all_replicas(c, b, sync))
+	if (!btree_node_read_all_replicas(c, b, sync))
 		return;
 
 	ret = bch2_bkey_pick_read_device(c, bkey_i_to_s_c(&b->key),

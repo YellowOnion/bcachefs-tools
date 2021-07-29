@@ -734,7 +734,7 @@ noinline void bch2_btree_bad_header(struct bch_fs *c, struct btree *b)
 			     bch2_btree_ids[BTREE_NODE_ID(b->data)],
 			     BTREE_NODE_LEVEL(b->data),
 			     buf2, buf3);
-	dump_stack();
+	BUG();
 }
 
 /**

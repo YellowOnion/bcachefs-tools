@@ -552,19 +552,19 @@ static int __ec_stripe_mem_alloc(struct bch_fs *c, size_t idx, gfp_t gfp)
 	return 0;
 }
 
-static int ec_stripe_mem_alloc(struct bch_fs *c,
+static int ec_stripe_mem_alloc(struct btree_trans *trans,
 			       struct btree_iter *iter)
 {
 	size_t idx = iter->pos.offset;
 	int ret = 0;
 
-	if (!__ec_stripe_mem_alloc(c, idx, GFP_NOWAIT|__GFP_NOWARN))
+	if (!__ec_stripe_mem_alloc(trans->c, idx, GFP_NOWAIT|__GFP_NOWARN))
 		return ret;
 
-	bch2_trans_unlock(iter->trans);
+	bch2_trans_unlock(trans);
 	ret = -EINTR;
 
-	if (!__ec_stripe_mem_alloc(c, idx, GFP_KERNEL))
+	if (!__ec_stripe_mem_alloc(trans->c, idx, GFP_KERNEL))
 		return ret;
 
 	return -ENOMEM;
@@ -735,7 +735,7 @@ retry:
 found_slot:
 	start_pos = iter->pos;
 
-	ret = ec_stripe_mem_alloc(c, iter);
+	ret = ec_stripe_mem_alloc(&trans, iter);
 	if (ret)
 		goto err;
 
@@ -824,6 +824,7 @@ static int ec_stripe_update_ptrs(struct bch_fs *c,
 	struct bkey_s_c k;
 	struct bkey_s_extent e;
 	struct bkey_buf sk;
+	struct bpos next_pos;
 	int ret = 0, dev, block;
 
 	bch2_bkey_buf_init(&sk);
@@ -863,10 +864,14 @@ static int ec_stripe_update_ptrs(struct bch_fs *c,
 		extent_stripe_ptr_add(e, s, ec_ptr, block);
 
 		bch2_btree_iter_set_pos(iter, bkey_start_pos(&sk.k->k));
+		next_pos = sk.k->k.p;
+
 		ret   = bch2_btree_iter_traverse(iter) ?:
 			bch2_trans_update(&trans, iter, sk.k, 0) ?:
 			bch2_trans_commit(&trans, NULL, NULL,
 					BTREE_INSERT_NOFAIL);
+		if (!ret)
+			bch2_btree_iter_set_pos(iter, next_pos);
 		if (ret == -EINTR)
 			ret = 0;
 		if (ret)

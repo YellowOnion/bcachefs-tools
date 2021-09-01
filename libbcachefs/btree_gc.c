@@ -177,6 +177,8 @@ static int set_node_min(struct bch_fs *c, struct btree *b, struct bpos new_min)
 
 	bch2_btree_node_drop_keys_outside_node(b);
 
+	bch2_btree_check_header(c, b);
+
 	return 0;
 }
 
@@ -321,6 +323,7 @@ again:
 	bch2_bkey_buf_init(&prev_k);
 	bch2_bkey_buf_init(&cur_k);
 	bch2_btree_and_journal_iter_init_node_iter(&iter, c, b);
+	iter.noprefetch = true;
 
 	while ((k = bch2_btree_and_journal_iter_peek(&iter)).k) {
 		BUG_ON(bpos_cmp(k.k->p, b->data->min_key) < 0);
@@ -355,6 +358,11 @@ again:
 		}
 
 		ret = btree_repair_node_boundaries(c, b, prev, cur);
+
+		if (ret != DROP_PREV_NODE && prev)
+			bch2_btree_check_header(c, prev);
+		if (ret != DROP_THIS_NODE)
+			bch2_btree_check_header(c, cur);
 
 		if (ret == DROP_THIS_NODE) {
 			six_unlock_read(&cur->c.lock);
@@ -1735,8 +1743,15 @@ static int bch2_gc_btree_gens(struct bch_fs *c, enum btree_id btree_id)
 				   BTREE_ITER_NOT_EXTENTS|
 				   BTREE_ITER_ALL_SNAPSHOTS);
 
-	while ((k = bch2_btree_iter_peek(iter)).k &&
-	       !(ret = bkey_err(k))) {
+	while ((bch2_trans_begin(&trans),
+		k = bch2_btree_iter_peek(iter)).k) {
+		ret = bkey_err(k);
+
+		if (ret == -EINTR)
+			continue;
+		if (ret)
+			break;
+
 		c->gc_gens_pos = iter->pos;
 
 		if (gc_btree_gens_key(c, k) && !commit_err) {

@@ -29,8 +29,9 @@ struct btree *bch2_btree_node_get(struct btree_trans *, struct btree_iter *,
 struct btree *bch2_btree_node_get_noiter(struct bch_fs *, const struct bkey_i *,
 					 enum btree_id, unsigned, bool);
 
-int bch2_btree_node_prefetch(struct bch_fs *, struct btree_iter *,
-			     const struct bkey_i *, enum btree_id, unsigned);
+int bch2_btree_node_prefetch(struct bch_fs *, struct btree_trans *,
+			     struct btree_iter *, const struct bkey_i *,
+			     enum btree_id, unsigned);
 
 void bch2_btree_node_evict(struct bch_fs *, const struct bkey_i *);
 
@@ -87,6 +88,19 @@ static inline size_t btree_pages(struct bch_fs *c)
 static inline unsigned btree_blocks(struct bch_fs *c)
 {
 	return c->opts.btree_node_size >> c->block_bits;
+}
+
+void bch2_btree_bad_header(struct bch_fs *, struct btree *);
+
+static inline void bch2_btree_check_header(struct bch_fs *c, struct btree *b)
+{
+	if (b->c.btree_id != BTREE_NODE_ID(b->data) ||
+	    b->c.level != BTREE_NODE_LEVEL(b->data) ||
+	    bpos_cmp(b->data->max_key, b->key.k.p) ||
+	    (b->key.k.type == KEY_TYPE_btree_ptr_v2 &&
+	     bpos_cmp(b->data->min_key,
+		      bkey_i_to_btree_ptr_v2(&b->key)->v.min_key)))
+		bch2_btree_bad_header(c, b);
 }
 
 #define BTREE_SPLIT_THRESHOLD(c)		(btree_max_u64s(c) * 2 / 3)

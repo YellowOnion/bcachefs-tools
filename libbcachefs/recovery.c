@@ -318,6 +318,9 @@ static void btree_and_journal_iter_prefetch(struct bch_fs *c, struct btree *b,
 	struct bkey_s_c k;
 	struct bkey_buf tmp;
 
+	if (iter.noprefetch)
+		return;
+
 	BUG_ON(!b->c.level);
 
 	bch2_bkey_buf_init(&tmp);
@@ -326,8 +329,8 @@ static void btree_and_journal_iter_prefetch(struct bch_fs *c, struct btree *b,
 	       (k = bch2_btree_and_journal_iter_peek(&iter)).k) {
 		bch2_bkey_buf_reassemble(&tmp, c, k);
 
-		bch2_btree_node_prefetch(c, NULL, tmp.k,
-					b->c.btree_id, b->c.level - 1);
+		bch2_btree_node_prefetch(c, NULL, NULL, tmp.k,
+					 b->c.btree_id, b->c.level - 1);
 
 		bch2_btree_and_journal_iter_advance(&iter);
 		i++;
@@ -1216,7 +1219,9 @@ use_clean:
 
 	if (!(c->sb.compat & (1ULL << BCH_COMPAT_extents_above_btree_updates_done)) ||
 	    !(c->sb.compat & (1ULL << BCH_COMPAT_bformat_overflow_done))) {
-		struct bch_move_stats stats = { 0 };
+		struct bch_move_stats stats;
+
+		bch_move_stats_init(&stats, "recovery");
 
 		bch_info(c, "scanning for old btree nodes");
 		ret = bch2_fs_read_write(c);

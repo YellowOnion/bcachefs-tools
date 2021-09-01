@@ -18,6 +18,7 @@ struct journal_iter {
  */
 
 struct btree_and_journal_iter {
+	bool			noprefetch;
 	struct btree		*b;
 	struct btree_node_iter	node_iter;
 	struct bkey		unpacked;

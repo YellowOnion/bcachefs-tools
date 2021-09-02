@@ -1609,6 +1609,8 @@ again:
 		ret = bch2_repair_topology(c);
 		if (ret)
 			goto out;
+
+		bch2_btree_cache_verify(c);
 		bch_info(c, "topology repair pass done");
 
 		set_bit(BCH_FS_TOPOLOGY_REPAIR_DONE, &c->flags);
@@ -1676,6 +1678,8 @@ out:
 	percpu_up_write(&c->mark_lock);
 
 	up_write(&c->gc_lock);
+
+	bch2_btree_cache_verify(c);
 
 	trace_gc_end(c);
 	bch2_time_stats_update(&c->times[BCH_TIME_btree_gc], start_time);

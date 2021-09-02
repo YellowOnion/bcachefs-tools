@@ -538,12 +538,16 @@ static int bch2_journal_replay_key(struct bch_fs *c, struct journal_key *k)
 {
 	unsigned commit_flags = BTREE_INSERT_NOFAIL|
 		BTREE_INSERT_LAZY_RW;
+	int ret;
 
 	if (!k->allocated)
 		commit_flags |= BTREE_INSERT_JOURNAL_REPLAY;
 
-	return bch2_trans_do(c, NULL, NULL, commit_flags,
-			     __bch2_journal_replay_key(&trans, k->btree_id, k->level, k->k));
+	ret = bch2_trans_do(c, NULL, NULL, commit_flags,
+			    __bch2_journal_replay_key(&trans, k->btree_id, k->level, k->k));
+
+	bch2_btree_cache_verify(c);
+	return ret;
 }
 
 static int __bch2_alloc_replay_key(struct btree_trans *trans, struct bkey_i *k)
@@ -589,6 +593,10 @@ static int bch2_journal_replay(struct bch_fs *c,
 	struct journal_key *i;
 	u64 seq;
 	int ret;
+
+	for_each_journal_key(keys, i)
+		BUG_ON(i + 1 < keys.d + keys.nr &&
+		       journal_key_cmp(i, i + 1) >= 0);
 
 	sort(keys.d, keys.nr, sizeof(keys.d[0]), journal_sort_seq_cmp, NULL);
 

@@ -116,4 +116,6 @@ void bch2_btree_node_to_text(struct printbuf *, struct bch_fs *,
 			     struct btree *);
 void bch2_btree_cache_to_text(struct printbuf *, struct bch_fs *);
 
+void bch2_btree_cache_verify(struct bch_fs *);
+
 #endif /* _BCACHEFS_BTREE_CACHE_H */

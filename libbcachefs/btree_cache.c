@@ -1078,3 +1078,15 @@ void bch2_btree_cache_to_text(struct printbuf *out, struct bch_fs *c)
 	pr_buf(out, "nr dirty:\t\t%u\n", atomic_read(&c->btree_cache.dirty));
 	pr_buf(out, "cannibalize lock:\t%p\n", c->btree_cache.alloc_lock);
 }
+
+void bch2_btree_cache_verify(struct bch_fs *c)
+{
+	struct bucket_table *tbl;
+	struct rhash_head *pos;
+	struct btree *b;
+	unsigned i;
+
+	for_each_cached_btree(b, c, tbl, i, pos) {
+		bch2_btree_check_header(c, b);
+	}
+}

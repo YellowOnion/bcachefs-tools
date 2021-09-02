@@ -1032,6 +1032,8 @@ int bch2_btree_node_read_done(struct bch_fs *c, struct bch_dev *ca,
 		b->written = nonblacklisted_written;
 	}
 
+	bch2_btree_check_header(c, b);
+
 	sorted = btree_bounce_alloc(c, btree_bytes(c), &used_mempool);
 	sorted->keys.u64s = 0;
 
@@ -1103,6 +1105,11 @@ int bch2_btree_node_read_done(struct bch_fs *c, struct bch_dev *ca,
 		set_btree_node_need_rewrite(b);
 out:
 	mempool_free(iter, &c->fill_iter);
+
+	if (!retry_read &&
+	    !btree_node_read_error(b))
+		bch2_btree_check_header(c, b);
+
 	return retry_read;
 fsck_err:
 	if (ret == BTREE_RETRY_READ) {

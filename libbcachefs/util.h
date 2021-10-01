@@ -84,12 +84,10 @@ static inline void vpfree(void *p, size_t size)
 		free_pages((unsigned long) p, get_order(size));
 }
 
-static inline void *vpmalloc(size_t size, gfp_t gfp_mask)
-{
-	return (void *) __get_free_pages(gfp_mask|__GFP_NOWARN,
-					 get_order(size)) ?:
-		__vmalloc(size, gfp_mask);
-}
+#define vpmalloc(_size, _gfp_mask)					\
+	((void *) __get_free_pages(_gfp_mask|__GFP_NOWARN,		\
+				   get_order(_size)) ?:			\
+		__vmalloc(_size, _gfp_mask))
 
 static inline void kvpfree(void *p, size_t size)
 {
@@ -99,12 +97,10 @@ static inline void kvpfree(void *p, size_t size)
 		vpfree(p, size);
 }
 
-static inline void *kvpmalloc(size_t size, gfp_t gfp_mask)
-{
-	return size < PAGE_SIZE
-		? kmalloc(size, gfp_mask)
-		: vpmalloc(size, gfp_mask);
-}
+#define kvpmalloc(_size, _gfp_mask)					\
+	(_size < PAGE_SIZE						\
+	 ? kmalloc(_size, _gfp_mask)					\
+	 : vpmalloc(_size, _gfp_mask))
 
 int mempool_init_kvpmalloc_pool(mempool_t *, int, size_t);
 

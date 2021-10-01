@@ -14,48 +14,47 @@
 #define ARCH_KMALLOC_MINALIGN		16
 #define KMALLOC_MAX_SIZE		SIZE_MAX
 
-static inline void *kmalloc(size_t size, gfp_t flags)
-{
-	void *p;
+#define kmalloc(_size, _flags)								\
+({											\
+	void *_p;									\
+											\
+	run_shrinkers();								\
+											\
+	if ((_size) != 0) {								\
+		size_t alignment = min(rounddown_pow_of_two(_size), (size_t)PAGE_SIZE);	\
+		alignment = max(sizeof(void *), alignment);				\
+		if (posix_memalign(&_p, alignment, _size))				\
+			_p = NULL;							\
+	} else {									\
+		_p = malloc(0);								\
+	}										\
+	if (_p && ((_flags) & __GFP_ZERO))						\
+		memset(_p, 0, _size);							\
+											\
+	_p;										\
+})
 
-	run_shrinkers();
-
-	if (size) {
-		size_t alignment = min(rounddown_pow_of_two(size), (size_t)PAGE_SIZE);
-		alignment = max(sizeof(void *), alignment);
-		if (posix_memalign(&p, alignment, size))
-			p = NULL;
-	} else {
-		p = malloc(0);
-	}
-	if (p && (flags & __GFP_ZERO))
-		memset(p, 0, size);
-
-	return p;
-}
-
-static inline void *krealloc(void *old, size_t size, gfp_t flags)
-{
-	void *new;
-
-	run_shrinkers();
-
-	new = kmalloc(size, flags);
-	if (!new)
-		return NULL;
-
-	if (flags & __GFP_ZERO)
-		memset(new, 0, size);
-
-	if (old) {
-		memcpy(new, old,
-		       min(malloc_usable_size(old),
-			   malloc_usable_size(new)));
-		free(old);
-	}
-
-	return new;
-}
+#define krealloc(_old, _size, _flags)							\
+({											\
+	void *_new;									\
+											\
+	run_shrinkers();								\
+											\
+	_new = kmalloc(_size, _flags);							\
+	if (_new) {									\
+		if ((_flags) & __GFP_ZERO)						\
+			memset(_new, 0, _size);						\
+											\
+		if (_old) {								\
+			memcpy(_new, _old,						\
+			       min(malloc_usable_size(_old),				\
+				   malloc_usable_size(_new)));				\
+			free(_old);							\
+		}									\
+	}										\
+											\
+	_new;										\
+})
 
 #define kzalloc(size, flags)		kmalloc(size, flags|__GFP_ZERO)
 #define kmalloc_array(n, size, flags)					\
@@ -71,19 +70,19 @@ static inline void *krealloc(void *old, size_t size, gfp_t flags)
 #define kvzalloc(size, flags)		kzalloc(size, flags)
 #define kvfree(p)			kfree(p)
 
-static inline struct page *alloc_pages(gfp_t flags, unsigned int order)
-{
-	size_t size = PAGE_SIZE << order;
-	void *p;
-
-	run_shrinkers();
-
-	p = aligned_alloc(PAGE_SIZE, size);
-	if (p && (flags & __GFP_ZERO))
-		memset(p, 0, size);
-
-	return p;
-}
+#define alloc_pages(_flags, _order)							\
+({											\
+	size_t _size = PAGE_SIZE << (_order);						\
+	void *p;									\
+											\
+	run_shrinkers();								\
+											\
+	p = aligned_alloc(PAGE_SIZE, _size);						\
+	if (p && ((_flags) & __GFP_ZERO))						\
+		memset(p, 0, _size);							\
+											\
+	p;										\
+})
 
 #define alloc_page(gfp)			alloc_pages(gfp, 0)
 

@@ -23,8 +23,8 @@
 
 int device_usage(void)
 {
-       puts("bcachefs device - manage devices within a running filesystem\n"
-            "Usage: bcachefs device <CMD> [OPTION]\n"
+       puts("bcachefs dev[ice] - manage devices within a running filesystem\n"
+            "Usage: bcachefs dev[ice] <CMD> [OPTION]\n"
             "\n"
             "Commands:\n"
             "  add                     add a new device to an existing filesystem\n"
@@ -42,8 +42,8 @@ int device_usage(void)
 
 static void device_add_usage(void)
 {
-	puts("bcachefs device add - add a device to an existing filesystem\n"
-	     "Usage: bcachefs device add [OPTION]... filesystem device\n"
+	puts("bcachefs dev[ice] add - add a device to an existing filesystem\n"
+	     "Usage: bcachefs dev[ice] add [OPTION]... filesystem device\n"
 	     "\n"
 	     "Options:\n"
 	     "  -S, --fs_size=size          Size of filesystem on device\n"
@@ -140,9 +140,9 @@ int cmd_device_add(int argc, char *argv[])
 
 static void device_remove_usage(void)
 {
-	puts("bcachefs device_remove - remove a device from a filesystem\n"
+	puts("bcachefs dev[ice] remove - remove a device from a filesystem\n"
 	     "Usage:\n"
-	     "  bcachefs device remove <device>|<devid> <path>\n"
+	     "  bcachefs dev[ice] remove <device>|<devid> <path>\n"
 	     "\n"
 	     "Options:\n"
 	     "  -f, --force		    Force removal, even if some data\n"
@@ -211,8 +211,8 @@ int cmd_device_remove(int argc, char *argv[])
 
 static void device_online_usage(void)
 {
-	puts("bcachefs device online - readd a device to a running filesystem\n"
-	     "Usage: bcachefs device online [OPTION]... device\n"
+	puts("bcachefs dev[ice] online - readd a device to a running filesystem\n"
+	     "Usage: bcachefs dev[ice] online [OPTION]... device\n"
 	     "\n"
 	     "Options:\n"
 	     "  -h, --help                  Display this help and exit\n"
@@ -247,8 +247,8 @@ int cmd_device_online(int argc, char *argv[])
 
 static void device_offline_usage(void)
 {
-	puts("bcachefs device offline - take a device offline, without removing it\n"
-	     "Usage: bcachefs device offline [OPTION]... device\n"
+	puts("bcachefs dev[ice] offline - take a device offline, without removing it\n"
+	     "Usage: bcachefs dev[ice] offline [OPTION]... device\n"
 	     "\n"
 	     "Options:\n"
 	     "  -f, --force		    Force, if data redundancy will be degraded\n"
@@ -292,8 +292,8 @@ int cmd_device_offline(int argc, char *argv[])
 
 static void device_evacuate_usage(void)
 {
-	puts("bcachefs device evacuate - move data off of a given device\n"
-	     "Usage: bcachefs device evacuate [OPTION]... device\n"
+	puts("bcachefs dev[ice] evacuate - move data off of a given device\n"
+	     "Usage: bcachefs dev[ice] evacuate [OPTION]... device\n"
 	     "\n"
 	     "Options:\n"
 	     "  -h, --help                  Display this help and exit\n"
@@ -342,8 +342,8 @@ int cmd_device_evacuate(int argc, char *argv[])
 
 static void device_set_state_usage(void)
 {
-	puts("bcachefs device set-state\n"
-	     "Usage: bcachefs device set-state <new-state> <device>|<devid> <path>\n"
+	puts("bcachefs dev[ice] set-state\n"
+	     "Usage: bcachefs dev[ice] set-state <new-state> <device>|<devid> <path>\n"
 	     "\n"
 	     "<new-state>: one of rw, ro, failed or spare\n"
 	     "<path>: path to mounted filesystem, optional unless specifying device by id\n"
@@ -449,8 +449,8 @@ int cmd_device_set_state(int argc, char *argv[])
 
 static void device_resize_usage(void)
 {
-	puts("bcachefs device resize \n"
-	     "Usage: bcachefs device resize device [ size ]\n"
+	puts("bcachefs dev[ice] resize \n"
+	     "Usage: bcachefs dev[ice] resize device [ size ]\n"
 	     "\n"
 	     "Options:\n"
 	     "  -h, --help                  display this help and exit\n"
@@ -557,8 +557,8 @@ int cmd_device_resize(int argc, char *argv[])
 
 static void device_resize_journal_usage(void)
 {
-	puts("bcachefs device resize-journal \n"
-	     "Usage: bcachefs device resize-journal device size\n"
+	puts("bcachefs dev[ice] resize-journal \n"
+	     "Usage: bcachefs dev[ice] resize-journal device size\n"
 	     "\n"
 	     "Options:\n"
 	     "  -h, --help                  display this help and exit\n"

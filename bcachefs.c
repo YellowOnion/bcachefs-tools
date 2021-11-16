@@ -183,13 +183,13 @@ int main(int argc, char *argv[])
 	}
 
 	/* these subcommands display usage when argc < 2 */
-	if (!strcmp(cmd, "device"))
+	if (!strcmp(cmd, "device") || !strcmp(cmd, "dev"))
 		return device_cmds(argc, argv);
 	if (!strcmp(cmd, "fs"))
 		return fs_cmds(argc, argv);
 	if (!strcmp(cmd, "data"))
 		return data_cmds(argc, argv);
-	if (!strcmp(cmd, "subvolume"))
+	if (!strcmp(cmd, "subvolume") || !strcmp(cmd, "subvol"))
 		return subvolume_cmds(argc, argv);
 	if (!strcmp(cmd, "format"))
 		return cmd_format(argc, argv);

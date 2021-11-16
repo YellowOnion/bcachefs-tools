@@ -21,7 +21,7 @@
 
 int subvolume_usage(void)
 {
-	puts("bcachefs subvolume - manage subvolumes and snapshots\n"
+	puts("bcachefs subvol[ume] - manage subvolumes and snapshots\n"
 	     "Usage: bcachefs subvolume <CMD> [OPTION]\n"
 	     "\n"
 	     "Commands:\n"
@@ -35,8 +35,8 @@ int subvolume_usage(void)
 
 static void subvolume_create_usage(void)
 {
-	puts("bcachefs subvolume create - create a new subvolume\n"
-	     "Usage: bcachefs subvolume create [OPTION]... path\n"
+	puts("bcachefs subvol[ume] create - create a new subvolume\n"
+	     "Usage: bcachefs subvol[ume] create [OPTION]... path\n"
 	     "\n"
 	     "Options:\n"
 	     "  -h, --help                  Display this help and exit\n"
@@ -81,8 +81,8 @@ int cmd_subvolume_create(int argc, char *argv[])
 
 static void subvolume_delete_usage(void)
 {
-	puts("bcachefs subvolume delete - delete an existing subvolume\n"
-	     "Usage: bcachefs subvolume delete [OPTION]... path\n"
+	puts("bcachefs subvol[ume] delete - delete an existing subvolume\n"
+	     "Usage: bcachefs subvol[ume] delete [OPTION]... path\n"
 	     "\n"
 	     "Options:\n"
 	     "  -h, --help                  Display this help and exit\n"
@@ -127,8 +127,8 @@ int cmd_subvolume_delete(int argc, char *argv[])
 
 static void snapshot_create_usage(void)
 {
-	puts("bcachefs subvolume snapshot - create a snapshot \n"
-	     "Usage: bcachefs subvolume snapshot [OPTION]... <source> <dest>\n"
+	puts("bcachefs subvol[ume] snapshot - create a snapshot \n"
+	     "Usage: bcachefs subvol[ume] snapshot [OPTION]... <source> <dest>\n"
 	     "\n"
 	     "Create a snapshot of <source> at <dest>. If specified, <source> must be a subvolume;\n"
 	     "if not specified the snapshot will be of the subvolme containing <dest>.\n"

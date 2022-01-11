@@ -1,6 +1,6 @@
 { lib
-, filter
-
+, doCheck ? true
+, dontStrip ? false
 , stdenv
 , pkg-config
 , attr
@@ -20,8 +20,7 @@
 , docutils
 , nixosTests
 
-, lastModified
-, versionString ? lastModified
+, versionString ? "0.1"
 
 , inShell ? false
 , debugMode ? inShell
@@ -39,20 +38,8 @@ stdenv.mkDerivation {
 
 	version = "v0.1-flake-${versionString}";
 	VERSION = "v0.1-flake-${versionString}";
-	
-	src = filter.filter {
-		name = "bcachefs-tools";
-		root = ./.;
-		exclude = [
-			./rust-src
-			
-			./.git
-			./nix
-			
-			./flake.nix
-			./flake.lock
-		];
-	};
+
+	src = (lib.cleanSource (builtins.path { name = "bcachefs-tools-src"; path = ./. ;} ));
 
 	postPatch = "patchShebangs --build doc/macro2rst.py";
 
@@ -95,7 +82,8 @@ stdenv.mkDerivation {
 		"INITRAMFS_DIR=${placeholder "out"}/etc/initramfs-tools"
 	];
 
-	doCheck = true; # needs bcachefs module loaded on builder
+	doCheck = doCheck; # needs bcachefs module loaded on builder
+	dontStrip = dontStrip;
 
 	checkInputs = [
 		python39Packages.pytest
@@ -116,7 +104,6 @@ stdenv.mkDerivation {
 			rm tests/test_fuse.py
 		'';
 
-	dontStrip = debugMode == true;
 	passthru = {
 		bcachefs_revision = let 
 			file = builtins.readFile ./.bcachefs_revision;

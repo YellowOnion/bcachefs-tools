@@ -4,7 +4,6 @@ final: prev: {
 		tools = final.callPackage ../default.nix {
 			testWithValgrind = false;
 			filter = filter.lib;
-			lastModified = builtins.substring 0 8 self.lastModifiedDate;
 			versionString = self.version;
 		};
 		toolsValgrind = final.bcachefs.tools.override {

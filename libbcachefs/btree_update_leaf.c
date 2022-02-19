@@ -865,8 +865,6 @@ bch2_trans_commit_get_rw_cold(struct btree_trans *trans)
 static int run_one_trigger(struct btree_trans *trans, struct btree_insert_entry *i,
 			   bool overwrite)
 {
-	struct bkey		_deleted = KEY(0, 0, 0);
-	struct bkey_s_c		deleted = (struct bkey_s_c) { &_deleted, NULL };
 	struct bkey_s_c		old;
 	struct bkey		unpacked;
 	int ret = 0;
@@ -890,19 +888,16 @@ static int run_one_trigger(struct btree_trans *trans, struct btree_insert_entry 
 	}
 
 	old = bch2_btree_path_peek_slot(i->path, &unpacked);
-	_deleted.p = i->path->pos;
 
 	if (overwrite) {
-		ret = bch2_trans_mark_key(trans, old, deleted,
-				BTREE_TRIGGER_OVERWRITE|i->flags);
+		ret = bch2_trans_mark_old(trans, old, i->flags);
 	} else if (old.k->type == i->k->k.type &&
 	    ((1U << old.k->type) & BTREE_TRIGGER_WANTS_OLD_AND_NEW)) {
 		i->overwrite_trigger_run = true;
-		ret = bch2_trans_mark_key(trans, old, bkey_i_to_s_c(i->k),
+		ret = bch2_trans_mark_key(trans, old, i->k,
 				BTREE_TRIGGER_INSERT|BTREE_TRIGGER_OVERWRITE|i->flags);
 	} else {
-		ret = bch2_trans_mark_key(trans, deleted, bkey_i_to_s_c(i->k),
-				BTREE_TRIGGER_INSERT|i->flags);
+		ret = bch2_trans_mark_new(trans, i->k, i->flags);
 	}
 
 	if (ret == -EINTR)
@@ -930,6 +925,9 @@ static int run_btree_triggers(struct btree_trans *trans, enum btree_id btree_id,
 			for (i = btree_id_start;
 			     i < trans->updates + trans->nr_updates && i->btree_id <= btree_id;
 			     i++) {
+				if (i->btree_id != btree_id)
+					continue;
+
 				ret = run_one_trigger(trans, i, overwrite);
 				if (ret < 0)
 					return ret;
@@ -956,6 +954,9 @@ static int bch2_trans_commit_run_triggers(struct btree_trans *trans)
 	 * they are re-added.
 	 */
 	for (btree_id = 0; btree_id < BTREE_ID_NR; btree_id++) {
+		if (btree_id == BTREE_ID_alloc)
+			continue;
+
 		while (btree_id_start < trans->updates + trans->nr_updates &&
 		       btree_id_start->btree_id < btree_id)
 			btree_id_start++;
@@ -965,12 +966,44 @@ static int bch2_trans_commit_run_triggers(struct btree_trans *trans)
 			return ret;
 	}
 
+	trans_for_each_update(trans, i) {
+		if (i->btree_id > BTREE_ID_alloc)
+			break;
+		if (i->btree_id == BTREE_ID_alloc) {
+			ret = run_btree_triggers(trans, BTREE_ID_alloc, i);
+			if (ret)
+				return ret;
+			break;
+		}
+	}
+
 	trans_for_each_update(trans, i)
 		BUG_ON(!(i->flags & BTREE_TRIGGER_NORUN) &&
 		       (BTREE_NODE_TYPE_HAS_TRANS_TRIGGERS & (1U << i->bkey_type)) &&
 		       (!i->insert_trigger_run || !i->overwrite_trigger_run));
 
 	return 0;
+}
+
+/*
+ * This is for updates done in the early part of fsck - btree_gc - before we've
+ * gone RW. we only add the new key to the list of keys for journal replay to
+ * do.
+ */
+static noinline int
+do_bch2_trans_commit_to_journal_replay(struct btree_trans *trans)
+{
+	struct bch_fs *c = trans->c;
+	struct btree_insert_entry *i;
+	int ret = 0;
+
+	trans_for_each_update(trans, i) {
+		ret = bch2_journal_key_insert(c, i->btree_id, i->level, i->k);
+		if (ret)
+			break;
+	}
+
+	return ret;
 }
 
 int __bch2_trans_commit(struct btree_trans *trans)
@@ -987,6 +1020,22 @@ int __bch2_trans_commit(struct btree_trans *trans)
 	if (trans->flags & BTREE_INSERT_GC_LOCK_HELD)
 		lockdep_assert_held(&c->gc_lock);
 
+	ret = bch2_trans_commit_run_triggers(trans);
+	if (ret)
+		goto out_reset;
+
+	if (unlikely(!test_bit(BCH_FS_MAY_GO_RW, &c->flags))) {
+		ret = do_bch2_trans_commit_to_journal_replay(trans);
+		goto out_reset;
+	}
+
+	if (!(trans->flags & BTREE_INSERT_NOCHECK_RW) &&
+	    unlikely(!percpu_ref_tryget(&c->writes))) {
+		ret = bch2_trans_commit_get_rw_cold(trans);
+		if (ret)
+			goto out_reset;
+	}
+
 	memset(&trans->journal_preres, 0, sizeof(trans->journal_preres));
 
 	trans->journal_u64s		= trans->extra_journal_entry_u64s;
@@ -996,29 +1045,6 @@ int __bch2_trans_commit(struct btree_trans *trans)
 
 	if (trans->journal_transaction_names)
 		trans->journal_u64s += JSET_ENTRY_LOG_U64s;
-
-	if (!(trans->flags & BTREE_INSERT_NOCHECK_RW) &&
-	    unlikely(!percpu_ref_tryget(&c->writes))) {
-		ret = bch2_trans_commit_get_rw_cold(trans);
-		if (ret)
-			goto out_reset;
-	}
-
-#ifdef CONFIG_BCACHEFS_DEBUG
-	/*
-	 * if BTREE_TRIGGER_NORUN is set, it means we're probably being called
-	 * from the key cache flush code:
-	 */
-	trans_for_each_update(trans, i)
-		if (!i->cached &&
-		    !(i->flags & BTREE_TRIGGER_NORUN))
-			bch2_btree_key_cache_verify_clean(trans,
-					i->btree_id, i->k->k.p);
-#endif
-
-	ret = bch2_trans_commit_run_triggers(trans);
-	if (ret)
-		goto out;
 
 	trans_for_each_update(trans, i) {
 		BUG_ON(!i->path->should_be_locked);

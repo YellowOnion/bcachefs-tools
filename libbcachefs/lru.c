@@ -5,6 +5,7 @@
 #include "btree_iter.h"
 #include "btree_update.h"
 #include "error.h"
+#include "linux/bug.h"
 #include "lru.h"
 #include "recovery.h"
 
@@ -50,7 +51,7 @@ static int lru_delete(struct btree_trans *trans, u64 id, u64 idx, u64 time)
 		bch2_fs_inconsistent(c,
 			"pointer to nonexistent lru %llu:%llu",
 			id, time);
-		ret = -EIO;
+		ret = -ENOKEY;
 		goto err;
 	}
 
@@ -59,7 +60,7 @@ static int lru_delete(struct btree_trans *trans, u64 id, u64 idx, u64 time)
 		bch2_fs_inconsistent(c,
 			"lru %llu:%llu with wrong backpointer: got %llu, should be %llu",
 			id, time, existing_idx, idx);
-		ret = -EIO;
+		ret = -ENOKEY;
 		goto err;
 	}
 

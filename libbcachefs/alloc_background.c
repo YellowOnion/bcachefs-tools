@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "ec.h"
 #include "error.h"
+#include "linux/kernel.h"
 #include "lru.h"
 #include "recovery.h"
 #include "varint.h"
@@ -474,9 +475,14 @@ int bch2_trans_mark_alloc(struct btree_trans *trans,
 	old_lru = alloc_lru_idx(old_u);
 	new_lru = alloc_lru_idx(new_u);
 
-	if (old_lru != new_lru) {
+
+ 	if (old_lru != new_lru) {
 		ret = bch2_lru_change(trans, new->k.p.inode, new->k.p.offset,
 				      old_lru, &new_lru);
+		if (ret == -ENOKEY) {
+			ret = bch2_lru_change(trans, new->k.p.inode, new->k.p.offset, 0, &new_lru);
+		}
+
 		if (ret)
 			return ret;
 
@@ -500,7 +506,7 @@ static int bch2_check_alloc_key(struct btree_trans *trans,
 	struct bkey_alloc_unpacked a;
 	unsigned discard_key_type, freespace_key_type;
 	struct bkey_s_c alloc_k, k;
-	char buf[200], buf2[100];
+	char buf[256], buf2[100];
 	int ret;
 
 	alloc_k = bch2_btree_iter_peek(alloc_iter);
@@ -596,12 +602,14 @@ static int bch2_check_alloc_key(struct btree_trans *trans,
 			(bch2_bkey_val_to_text(&PBUF(buf2), c, k), buf2))) {
 			u64 read_time = a.read_time;
 
+			bch_info(c, "a.bucket = %llu", a.bucket);
 			ret   = bch2_lru_change(trans, a.dev, a.bucket,
 						0, &a.read_time) ?:
 				(a.read_time != read_time
 				 ? bch2_alloc_write(trans, alloc_iter, &a, 0)
 				 : 0) ?:
 				bch2_trans_commit(trans, NULL, NULL, 0);
+			bch_info(c, "after: \n%s\n", (bch2_bkey_val_to_text(&PBUF(buf2), c, k), buf2));
 			if (ret)
 				goto err;
 		}

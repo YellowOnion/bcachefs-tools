@@ -5,4 +5,6 @@
 int bch2_fsck_full(struct bch_fs *);
 int bch2_fsck_walk_inodes_only(struct bch_fs *);
 
+int bch2_check_extents_early(struct bch_fs *);
+
 #endif /* _BCACHEFS_FSCK_H */

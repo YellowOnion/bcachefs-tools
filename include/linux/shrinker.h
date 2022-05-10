@@ -25,6 +25,6 @@ struct shrinker {
 int register_shrinker(struct shrinker *);
 void unregister_shrinker(struct shrinker *);
 
-void run_shrinkers(gfp_t gfp_mask, bool);
+void run_shrinkers_allocation_failed(gfp_t gfp_mask);
 
 #endif /* __TOOLS_LINUX_SHRINKER_H */

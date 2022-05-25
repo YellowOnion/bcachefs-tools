@@ -116,4 +116,25 @@ of the filesystem.
 Data protection
 ---------------
 
-foo
+The following options control redundancy:
+
+- durability (per device)
+- data_replicas
+- metadata_replicas
+- erasure_code
+
+The durability option informs bcachefs of the devices underlying redundancy
+level, for example if you have a hardware RAID 1 device, you can set durability
+to 2.
+
+The data_replicas and metadata_replicas options specify how much redundancy we
+want for the data or metadata, these options are per-file with a fs default.
+
+When erasure_code is not set replicas are exact 1:1 copies, similar to RAID1.
+When it is on data is striped with parity, similar to RAID5.
+
+If any of these options have been changed it is recomended to run
+
+.. code-block:: bash
+
+  bcachefs data rereplicate

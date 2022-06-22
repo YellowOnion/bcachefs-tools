@@ -5,6 +5,7 @@ bcachefs.5
 *.o
 *.d
 *.a
+*.so
 tags
 TAGS
 cscope*

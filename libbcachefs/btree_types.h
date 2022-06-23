@@ -301,6 +301,11 @@ struct btree_iter {
 #endif
 };
 
+struct btree_key_cache_freelist {
+	struct bkey_cached	*objs[16];
+	unsigned		nr;
+};
+
 struct btree_key_cache {
 	struct mutex		lock;
 	struct rhashtable	table;
@@ -308,8 +313,9 @@ struct btree_key_cache {
 	struct list_head	freed;
 	struct shrinker		shrink;
 	unsigned		shrink_iter;
+	struct btree_key_cache_freelist __percpu *pcpu_freed;
 
-	size_t			nr_freed;
+	atomic_long_t		nr_freed;
 	atomic_long_t		nr_keys;
 	atomic_long_t		nr_dirty;
 };
@@ -388,7 +394,7 @@ struct btree_trans {
 	u8			locking_btree_id;
 	u8			locking_level;
 	u8			locking_lock_type;
-	pid_t			pid;
+	struct task_struct	*task;
 	int			srcu_idx;
 
 	u8			nr_sorted;

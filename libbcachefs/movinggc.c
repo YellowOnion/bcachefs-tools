@@ -95,11 +95,11 @@ static int bch2_copygc(struct bch_fs *c)
 	struct bch_dev *ca;
 	unsigned dev_idx;
 	size_t heap_size = 0;
-	struct data_opts data_opts = {
-		.nr_replicas		= 1,
-		.btree_insert_flags	= BTREE_INSERT_USE_RESERVE|JOURNAL_WATERMARK_copygc,
+	struct moving_context ctxt;
+	struct data_update_opts data_opts = {
+		.btree_insert_flags = BTREE_INSERT_USE_RESERVE|JOURNAL_WATERMARK_copygc,
 	};
-	int ret;
+	int ret = 0;
 
 	bch_move_stats_init(&move_stats, "copygc");
 
@@ -121,25 +121,48 @@ static int bch2_copygc(struct bch_fs *c)
 	}
 
 	if (!h->used) {
-		bch_err_ratelimited(c, "copygc requested to run but found no buckets to move!");
+		s64 wait = S64_MAX, dev_wait;
+		u64 dev_min_wait_fragmented = 0;
+		u64 dev_min_wait_allowed = 0;
+		int dev_min_wait = -1;
+
+		for_each_rw_member(ca, c, dev_idx) {
+			struct bch_dev_usage usage = bch2_dev_usage_read(ca);
+			s64 allowed = ((__dev_buckets_available(ca, usage, RESERVE_none) *
+					       ca->mi.bucket_size) >> 1);
+			s64 fragmented = usage.d[BCH_DATA_user].fragmented;
+
+			dev_wait = max(0LL, allowed - fragmented);
+
+			if (dev_min_wait < 0 || dev_wait < wait) {
+				dev_min_wait = dev_idx;
+				dev_min_wait_fragmented = fragmented;
+				dev_min_wait_allowed	= allowed;
+			}
+		}
+
+		bch_err_ratelimited(c, "copygc requested to run but found no buckets to move! dev %u fragmented %llu allowed %llu",
+				    dev_min_wait, dev_min_wait_fragmented, dev_min_wait_allowed);
 		return 0;
 	}
 
 	heap_resort(h, fragmentation_cmp, NULL);
 
-	while (h->used) {
-		BUG_ON(!heap_pop(h, e, -fragmentation_cmp, NULL));
-		/* not correct w.r.t. device removal */
+	bch2_moving_ctxt_init(&ctxt, c, NULL, &move_stats,
+			      writepoint_ptr(&c->copygc_write_point),
+			      false);
 
-		ret = bch2_evacuate_bucket(c, POS(e.dev, e.bucket), e.gen, NULL,
-					   writepoint_ptr(&c->copygc_write_point),
-					   DATA_REWRITE, &data_opts,
-					   &move_stats);
-		if (ret < 0)
-			bch_err(c, "error %i from bch2_move_data() in copygc", ret);
-		if (ret)
-			return ret;
+	/* not correct w.r.t. device removal */
+	while (h->used && !ret) {
+		BUG_ON(!heap_pop(h, e, -fragmentation_cmp, NULL));
+		ret = __bch2_evacuate_bucket(&ctxt, POS(e.dev, e.bucket), e.gen,
+					     data_opts);
 	}
+
+	bch2_moving_ctxt_exit(&ctxt);
+
+	if (ret < 0)
+		bch_err(c, "error %i from bch2_move_data() in copygc", ret);
 
 	trace_copygc(c, atomic64_read(&move_stats.sectors_moved), 0, 0, 0);
 	return ret;
@@ -183,10 +206,11 @@ static int bch2_copygc_thread(void *arg)
 	struct bch_fs *c = arg;
 	struct io_clock *clock = &c->io_clock[WRITE];
 	u64 last, wait;
+	int ret = 0;
 
 	set_freezable();
 
-	while (!kthread_should_stop()) {
+	while (!ret && !kthread_should_stop()) {
 		cond_resched();
 
 		if (kthread_wait_freezable(c->copy_gc_enabled))
@@ -205,8 +229,11 @@ static int bch2_copygc_thread(void *arg)
 
 		c->copygc_wait = 0;
 
-		if (bch2_copygc(c))
-			break;
+		c->copygc_running = true;
+		ret = bch2_copygc(c);
+		c->copygc_running = false;
+
+		wake_up(&c->copygc_running_wq);
 	}
 
 	return 0;
@@ -250,4 +277,6 @@ int bch2_copygc_start(struct bch_fs *c)
 
 void bch2_fs_copygc_init(struct bch_fs *c)
 {
+	init_waitqueue_head(&c->copygc_running_wq);
+	c->copygc_running = false;
 }

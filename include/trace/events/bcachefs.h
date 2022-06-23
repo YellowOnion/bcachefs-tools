@@ -534,24 +534,26 @@ TRACE_EVENT(discard_buckets,
 );
 
 TRACE_EVENT(invalidate_bucket,
-	TP_PROTO(struct bch_fs *c, unsigned dev, u64 bucket),
-	TP_ARGS(c, dev, bucket),
+	TP_PROTO(struct bch_fs *c, unsigned dev, u64 bucket, unsigned int cached_sectors),
+	TP_ARGS(c, dev, bucket, cached_sectors),
 
 	TP_STRUCT__entry(
 		__field(dev_t,		dev			)
 		__field(u32,		dev_idx			)
 		__field(u64,		bucket			)
+		__field(unsigned int,	cached_sectors			)
 	),
 
 	TP_fast_assign(
 		__entry->dev		= c->dev;
 		__entry->dev_idx	= dev;
-		__entry->bucket		= bucket;
+		__entry->bucket	= bucket;
+		__entry->cached_sectors = cached_sectors;
 	),
 
-	TP_printk("%d:%d invalidated %u:%llu",
+	TP_printk("%d:%d invalidated %u:%llu cached_sectors %u",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
-		  __entry->dev_idx, __entry->bucket)
+		  __entry->dev_idx, __entry->bucket, __entry->cached_sectors)
 );
 
 /* Moving IO */

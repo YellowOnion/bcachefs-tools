@@ -131,15 +131,45 @@ static inline unsigned long hweight_long(unsigned long w)
 	return __builtin_popcountl(w);
 }
 
-static inline unsigned long hweight64(u64 w)
+static inline unsigned long hweight8(unsigned long w)
+{
+	return __builtin_popcount(w & 0xff);
+}
+
+static inline unsigned long hweight16(u16 w)
+{
+	return __builtin_popcount(w & (0xffff));
+}
+
+static inline unsigned long __hweight32_16(u32 w)
+{
+	return __builtin_popcountl(w & 0xffffffff);
+}
+
+static inline unsigned __hweight32_32(u32 w)
+{
+	return __builtin_popcount(w);
+}
+
+static inline unsigned long hweight32(u64 w)
+{
+	return sizeof(long) == 4 ? __hweight32_16(w) : __hweight32_32(w);
+}
+
+static inline unsigned long __hweight64_32(u64 w)
 {
 	return __builtin_popcount((u32) w) +
 	       __builtin_popcount(w >> 32);
 }
 
-static inline unsigned long hweight8(unsigned long w)
+static inline unsigned long __hweight64_64(u64 w)
 {
 	return __builtin_popcountl(w);
+}
+
+static inline unsigned long hweight64(u64 w)
+{
+	return sizeof(long) == 4 ? __hweight64_32(w) : __hweight64_64(w);
 }
 
 /**

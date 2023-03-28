@@ -13,6 +13,7 @@
 , lz4
 , nix-gitignore
 , rustPlatform
+, binutils
  }:
 
 let
@@ -32,7 +33,7 @@ in stdenv.mkDerivation {
     rustPlatform.rust.cargo
     rustPlatform.rust.rustc
     rustPlatform.bindgenHook
-  ];
+  ] ++ lib.optional stdenv.hostPlatform.isStatic [binutils.bintools];
 
   buildInputs = [
     libaio
@@ -53,11 +54,14 @@ in stdenv.mkDerivation {
     lockFile = "${src}/rust-src/Cargo.lock";
   };
 
-  makeFlags = [
-    "PREFIX=${placeholder "out"}"
-    "VERSION=${commit}"
-  ];
+  preBuild = ''
+    makeFlagsArray+=(
+      PREFIX="${placeholder "out"}"
+      VERSION="${commit}"
+    )
+'';
 
+  enableParallelBuilding = true;
   dontStrip = true;
   checkPhase = "./bcachefs version";
   doCheck = true;

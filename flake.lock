@@ -36,7 +36,8 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "nixpkgs": "nixpkgs",
-        "utils": "utils"
+        "utils": "utils",
+        "woob-nixpkgs": "woob-nixpkgs"
       }
     },
     "utils": {
@@ -51,6 +52,22 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "woob-nixpkgs": {
+      "locked": {
+        "lastModified": 1677544808,
+        "narHash": "sha256-waaSMk5T5DASJ5WrO4Jt0sl8GsAqRGx0DgK/9ttAW0c=",
+        "owner": "YellowOnion",
+        "repo": "nixpkgs",
+        "rev": "e548bf54c2ba703d0bbf0f9f05fc0e37407a1224",
+        "type": "github"
+      },
+      "original": {
+        "owner": "YellowOnion",
+        "ref": "static-fix-libkeyutils",
+        "repo": "nixpkgs",
         "type": "github"
       }
     }

@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include <linux/kthread.h>
 #include <linux/list.h>
@@ -37,39 +38,14 @@ struct meminfo {
 	u64		available;
 };
 
-static u64 parse_meminfo_line(const char *line)
-{
-	u64 v;
-
-	if (sscanf(line, " %llu kB", &v) < 1)
-		die("sscanf error");
-	return v << 10;
-}
-
 void si_meminfo(struct sysinfo *val)
 {
-	size_t len, n = 0;
-	char *line = NULL;
-	const char *v;
-	FILE *f;
-
+	long page_size = sysconf(_SC_PAGESIZE);
 	memset(val, 0, sizeof(*val));
 	val->mem_unit = 1;
 
-	f = fopen("/proc/meminfo", "r");
-	if (!f)
-		return;
-
-	while ((len = getline(&line, &n, f)) != -1) {
-		if ((v = strcmp_prefix(line, "MemTotal:")))
-			val->totalram = parse_meminfo_line(v);
-
-		if ((v = strcmp_prefix(line, "MemAvailable:")))
-			val->freeram = parse_meminfo_line(v);
-	}
-
-	fclose(f);
-	free(line);
+	val->totalram = sysconf(_SC_PHYS_PAGES) * page_size;
+	val->freeram  = sysconf(_SC_AVPHYS_PAGES) * page_size;
 }
 
 static void run_shrinkers_allocation_failed(gfp_t gfp_mask)
@@ -93,6 +69,7 @@ void run_shrinkers(gfp_t gfp_mask, bool allocation_failed)
 {
 	struct shrinker *shrinker;
 	struct sysinfo info;
+	struct mallinfo2 malloc_info = mallinfo2();
 	s64 want_shrink;
 
 	if (!(gfp_mask & GFP_KERNEL))
@@ -109,16 +86,15 @@ void run_shrinkers(gfp_t gfp_mask, bool allocation_failed)
 
 	si_meminfo(&info);
 
-	if (info.totalram && info.freeram) {
-		want_shrink = (info.totalram >> 2) - info.freeram;
+	if (info.totalram && info.totalram >> 4 < info.freeram) {
+		/* freeram goes up when system swaps, use malloced data instead */
+		want_shrink = -malloc_info.arena + (info.totalram / 10 * 8);
 
 		if (want_shrink <= 0)
 			return;
 	} else {
-		/* If we weren't able to read /proc/meminfo, we must be pretty
-		 * low: */
-
-		want_shrink = 8 << 20;
+		/* We want to play nice with other apps keep 6% avaliable, free 3% */
+		want_shrink = (info.totalram >> 5);
 	}
 
 	mutex_lock(&shrinker_lock);
